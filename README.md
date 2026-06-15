@@ -3,6 +3,8 @@
 
 Hey there! 👋 This is my submission for the Linux Infrastructure Take-Home Assignment. I built a fully automated, idempotent provisioning setup that turns a fresh Ubuntu Server (or Debian) VM into a secure, ready-to-go deployment environment. 
 
+🎥 **Demo Video**: [Watch the Provisioning & Reboot Validation Demo on Google Drive](https://drive.google.com/file/d/1N0P0us80SqqLlsDUbDPm7tMXGfl-qSnB/view?usp=sharing)
+
 Here's how everything is structured, how it works, and how to run it!
 
 ---

@@ -1,103 +1,51 @@
-# Local VM Reprovisioning Guide
+# 💻 How to Reprovision Your Local VM (From Scratch!)
 
-This guide describes how to set up, clone, snapshot, and safely reprovision your local Virtual Machine (VM) to test deployment scripts in a clean state.
-
----
-
-## 1. Initial VM Setup (Ubuntu Server 22.04/24.04 LTS)
-
-1. **Download ISO**: Obtain the official ISO image for Ubuntu Server (22.04 LTS or 24.04 LTS).
-2. **Create VM**:
-   - In VirtualBox or VMware, create a new VM.
-   - Allocate at least **2 vCPUs**, **2 GB RAM**, and a **20 GB Virtual Disk**.
-   - Configure a network adapter as **Bridged** (to receive a local IP) or **NAT with Port Forwarding**:
-     - Host Port `2222` -> Guest Port `22` (SSH)
-     - Host Port `8080` -> Guest Port `8080` (Health Check Service)
-3. **OS Installation**:
-   - Proceed with standard installation options.
-   - Create a temporary admin user (e.g. `ubuntu` or `sysadmin`).
-   - Enable OpenSSH Server during installation.
-   - Complete installation and reboot.
+Hey! If you want to test my provisioning scripts from a completely clean slate, here is a quick guide on how I set up my VM, take snapshots, and roll them back. This is super useful for testing if the script is actually idempotent (running it multiple times without breaking things).
 
 ---
 
-## 2. Setting Up the Git Repository on the Guest
+## 💿 1. Setting Up Your VM
+I'm using **VirtualBox** (but you can use VMware too) with **Ubuntu Server 24.04 LTS**.
 
-To copy the project configuration files into the guest VM:
-1. Log in to your VM via SSH:
-   ```bash
-   ssh -p 2222 ubuntu@localhost
-   ```
-2. Clone the repository into your home folder:
-   ```bash
-   git clone <your-repo-url> linux-infra-intern-assignment
-   cd linux-infra-intern-assignment
-   ```
+1. **Allocated Resources**: I gave the VM **2 vCPUs**, **2 GB RAM**, and a **20 GB Virtual Hard Disk** (that's plenty for this project).
+2. **Network settings**: I configured a NAT network with these **Port Forwarding rules** so I can access the VM from my host machine:
+   - **SSH**: Host Port `2222` -> Guest Port `22`
+   - **App Service**: Host Port `8080` -> Guest Port `8080`
+3. **OS Install**: Did a minimal install, enabled OpenSSH, and created a default user named `ubuntu` (or whatever admin name you want).
 
 ---
 
-## 3. Taking a Clean Snapshot (Crucial Step)
+## 📸 2. Taking a Clean Snapshot (Don't skip this!)
+Before you run any scripts, take a snapshot of the clean VM state. This way, if you make a mistake, you can reset it instantly instead of reinstalling the whole OS.
 
-Before running the provisioning script, take a snapshot of the VM in its clean state. This allows you to quickly roll back and test the idempotency or script failures.
+1. Turn off your VM: `sudo poweroff`
+2. In VirtualBox/VMware, select your VM, go to the **Snapshots** tab, and click **Take**.
+3. Name it something like `Clean OS Installed`.
+4. Turn the VM back on.
 
-### In VirtualBox:
-1. Shut down the VM: `sudo poweroff`
-2. Select the VM in the VirtualBox Manager.
-3. Click the menu next to the VM name and select **Snapshots**.
-4. Click **Take**. Name it `Clean OS Installed`.
-5. Start the VM again.
+---
 
-### In VMware Workstation / Player:
+## 🚀 3. Running & Rerunning the Setup
+
+Once you're in the VM, clone the repo and run:
+
+```bash
+git clone https://github.com/arun9557/linux_intern.git
+cd linux_intern/
+chmod +x scripts/*.sh
+sudo ./scripts/provision.sh
+```
+
+### Testing Idempotency
+To make sure my script is bulletproof:
+1. Run `sudo ./scripts/provision.sh` again.
+2. It should finish in a few seconds because it detects that `infra_user` is already created, UFW rules are already active, and configurations are already in place.
+3. Validate everything is still fine: `sudo ./scripts/validate.sh`.
+
+---
+
+## 🔄 4. Rolling Back to Clean State
+If you want to test everything on a fresh slate again:
 1. Shut down the VM.
-2. Go to **VM** -> **Snapshot** -> **Take Snapshot**.
-3. Name it `Clean OS Installed`.
-4. Start the VM again.
-
----
-
-## 4. Running the Provisioning Flow
-
-Once the VM is running:
-1. Navigate to the script directory:
-   ```bash
-   cd ~/linux-infra-intern-assignment
-   ```
-2. Execute the provisioning script as root (using sudo):
-   ```bash
-   sudo ./scripts/provision.sh
-   ```
-3. Observe the outputs. If successful, run the validation script to verify:
-   ```bash
-   ./scripts/validate.sh
-   ```
-
----
-
-## 5. Simulating Image Customization (Rerun Flow)
-
-To test if the provisioning script is truly **idempotent**:
-1. Run the provisioning script a second time:
-   ```bash
-   sudo ./scripts/provision.sh
-   ```
-2. Verify that:
-   - No duplicate users are created.
-   - Sudoers file permissions and values remain correct and are not appended repeatedly.
-   - Systemd services do not crash or duplicate.
-   - UFW firewall rules do not multiply.
-3. Run the validation script again:
-   ```bash
-   ./scripts/validate.sh
-   ```
-   It should exit with `0` (Success).
-
----
-
-## 6. Rolling Back to Clean State
-
-To start over from a completely fresh state:
-1. Shut down the VM: `sudo poweroff`
-2. Select the VM in your virtualization tool.
-3. Go to **Snapshots**.
-4. Select the snapshot `Clean OS Installed` and click **Restore**.
-5. Restart the VM. You are now back to the clean, pre-provisioned OS state.
+2. Open VirtualBox, go to **Snapshots**, select `Clean OS Installed`, and click **Restore**.
+3. Turn the VM back on. You're back to a fresh installation!

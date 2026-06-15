@@ -1,64 +1,65 @@
-# Test Execution Plan
+# 🧪 My Testing Plan (How I Verified Everything)
 
-This document maps out the milestones and testing procedures to verify the correctness, idempotency, and security of the provisioning process.
+Hey! This is my test execution plan. I wanted to make sure all parts of the provisioning flow work as expected, survive restarts, and keep the system secure.
+
+Here's the plan I followed to test the VM!
 
 ---
 
-## 1. Test Matrix & Scenarios
+## 📋 Test Scenarios
 
-| Test Case | Description | Procedure | Expected Results |
+Here's my checklist of things to test, how I test them, and what the expected result is:
+
+| Test Case | What it tests | How I run it | Expected Result |
 | :--- | :--- | :--- | :--- |
-| **TC-01: Clean Setup** | Verify provisioning runs successfully on a fresh, clean VM. | Restore VM snapshot, run `sudo ./scripts/provision.sh`. | Returns exit code 0. Deploys services, creates users, configures firewall. |
-| **TC-02: Idempotency Rerun** | Verify running the script twice does not cause duplicate configurations. | Run `sudo ./scripts/provision.sh` immediately after TC-01 completes. | Returns exit code 0. No duplicate entries in sudoers, users, or systemd units. |
-| **TC-03: User Sudoers Verification** | Verify user `infra_user` exists and can run sudo commands passwordlessly. | Run `sudo -u infra_user sudo -n whoami`. | Outputs `root` without prompting for a password. |
-| **TC-04: HTTP Health Endpoint** | Verify the Python service correctly responds with expected JSON payload. | Run `curl -i http://localhost:8080/health`. | Returns HTTP 200 OK. JSON contains `"status": "healthy"` and dynamically updated `"uptime"`. |
-| **TC-05: Port Exposure & UFW** | Verify only port 22 and port 8080 are accessible externally. | Run `sudo ufw status` and check active ports with `ss -tulpn`. | UFW shows status active. Ports 22 and 8080 allowed. All other incoming ports denied. |
-| **TC-06: Maintenance Timer Trigger**| Verify the maintenance timer trigger runs the maintenance service. | Run `sudo systemctl status infra-maintenance.timer` and run service manually. | Timer shows active. Manual execution completes and writes to `/var/log/infra-demo/maintenance.log`. |
-| **TC-07: Log Visibility & Routing** | Verify logs are correctly routed to files and systemd journal. | Query `journalctl -u infra-demo` and inspect `/var/log/infra-demo/app.log`. | Both show recent HTTP request logs. |
-| **TC-08: Reboot Survival** | Verify all services start up automatically and validation passes post-reboot. | Reboot VM via `sudo reboot`, wait, then run `./scripts/validate.sh`. | Validation script returns SUCCESS (Exit Code 0). |
+| **TC-01: Clean Setup** | Checks if the provision script works on a fresh VM. | Restore snapshot, run `sudo ./scripts/provision.sh`. | Runs without errors, starts services, configures UFW. |
+| **TC-02: Idempotency Rerun** | Checks if running the script twice breaks anything. | Run `sudo ./scripts/provision.sh` again immediately. | Skips existing config safely. No duplicates. |
+| **TC-03: Sudo Permission** | Checks if `infra_user` has passwordless sudo rights. | Run `sudo -u infra_user sudo -n whoami`. | Outputs `root` without asking for a password. |
+| **TC-04: API Response** | Checks if the Python app returns correct JSON data. | Run `curl -i http://localhost:8080/health`. | Returns `200 OK` and a JSON response with dynamic uptime. |
+| **TC-05: Firewall Rules** | Checks if UFW is locking down the server. | Run `sudo ufw status`. | Shows only ports 22 and 8080 allowed. All others blocked. |
+| **TC-06: Maintenance Timer**| Checks if log rotating works. | Run `sudo systemctl status infra-maintenance.timer`. | Shows timer is active and schedules tasks every 10 mins. |
+| **TC-07: Log Files** | Checks if system logs are writing to file. | Check `/var/log/infra-demo/app.log`. | Shows recent requests logged properly. |
+| **TC-08: Reboot Survival** | Checks if everything starts automatically after reboot. | Reboot the VM, then run `sudo ./scripts/validate.sh`. | All tests pass automatically. Uptime resets. |
 
 ---
 
-## 2. Manual Test Execution Walkthrough
+## 🛠️ Step-by-Step Testing Walkthrough
 
-### Step 1: Execute Provisioning
-Run the provisioning script on your local VM:
+### 1. Run the Provision Script
+First, run this in your VM:
 ```bash
 sudo ./scripts/provision.sh
 ```
-Check that the terminal outputs end with:
-`=== Provisioning Completed Successfully ===`
+Make sure you see `=== Provisioning Completed Successfully ===` at the end!
 
-### Step 2: Validate System State
-Run the automated validation script:
+### 2. Run the Validator
+Run the automated validation script to verify everything:
 ```bash
-./scripts/validate.sh
+sudo ./scripts/validate.sh
 ```
-This script acts as the automated tester for **TC-02** through **TC-07**. The expected output is:
-`Validation Status: SUCCESS` (with an exit code of `0`).
+It should print green `[ PASS ]` logs for every check and end with `Validation Status: SUCCESS`.
 
-### Step 3: Test Passwordless Sudo
-Execute:
+### 3. Verify Sudoers File
+Check if the user `infra_user` can execute commands as root without a password:
 ```bash
 sudo -u infra_user sudo -n whoami
 ```
-*Expected Output*: `root`
+It should print `root`.
 
-### Step 4: Verify Maintenance Logs
-Check if the maintenance snapshot script ran and logged successfully:
+### 4. Check the Maintenance Log
+Check if the system snapshot was created successfully:
 ```bash
 sudo cat /var/log/infra-demo/maintenance.log
 ```
-*Expected Output*: Shows the timestamped logs with Uptime, memory usage, disk usage, and service status.
+You should see CPU, memory, and disk usage statistics logged with a timestamp.
 
-### Step 5: Reboot and Verify (Reboot Survival)
-Run:
+### 5. Reboot Test
+Restart the VM:
 ```bash
 sudo reboot
 ```
-After the VM boots back up, log in and run:
+Log back in, go to the folder, and run:
 ```bash
-cd ~/linux-infra-intern-assignment
-./scripts/validate.sh
+sudo ./scripts/validate.sh
 ```
-Ensure all checks pass. Uptime check should dynamically show a small value (e.g. `< 60s`), demonstrating dynamic calculation.
+Check if the validation status is still `SUCCESS`!
