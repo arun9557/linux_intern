@@ -1,67 +1,57 @@
-# Security Hardening Checklist
+# 🛡️ My Hardening Checklist (How I Secured the Server)
 
-This document details the security configurations applied during the provisioning phase of the Linux server environment and provides the rationale behind each decision.
+Hey! This is where I document all the security settings I applied to the server during the setup. I wanted to make sure the VM isn't just running the app, but is also locked down from common attacks.
 
-## 1. Operating System & Package Level Hardening
-
-| Check | Action Taken | Rationale | Status |
-| :--- | :--- | :--- | :--- |
-| **System Updates** | Ran `apt-get update` | Ensures the local package index is current before installs. | [x] Applied |
-| **Minimal Tools** | Installed only `python3`, `ufw`, `curl`, `sudo`, `openssh-server` | Minimizes the attack surface by avoiding unnecessary software. | [x] Applied |
+Here's the breakdown of what I configured and why!
 
 ---
 
-## 2. SSH Daemon Hardening
+## 🔑 1. User & Sudo Access (Least Privilege)
+I didn't want the app running as `root` because if someone exploits the Python app, they would get full root control of the system.
 
-SSH hardening configurations are deployed in a modular config file `/etc/ssh/sshd_config.d/99-infra-hardening.conf` rather than modifying the main config directly.
-
-| Setting | Configuration | Rationale | Status |
-| :--- | :--- | :--- | :--- |
-| **PermitRootLogin** | `prohibit-password` | Prevents remote root login via password, forcing key-based authentication. | [x] Applied |
-| **PasswordAuthentication** | `yes` | Maintained for local VM ease of use. In production, this should be set to `no` once ssh keys are deployed. | [x] Applied (Safe default) |
-| **PermitEmptyPasswords** | `no` | Prevents users with empty passwords from logging in over SSH. | [x] Applied |
-| **X11Forwarding** | `no` | Disables GUI forwarding over SSH, preventing potential X11 hijacking exploits. | [x] Applied |
-| **MaxAuthTries** | `5` | Limits brute-force login attempts before connection teardown. | [x] Applied |
-| **ClientAliveInterval** | `300` | Sends a keepalive signal every 300 seconds to detect dead client sessions. | [x] Applied |
-| **ClientAliveCountMax** | `2` | Terminates SSH sessions if client becomes unresponsive for 2 keepalive windows (10 minutes total). | [x] Applied |
+- **Created a custom user**: Created a non-root user `infra_user` under `infra_group`. The health check app and maintenance tasks run entirely under this user.
+- **Sudoers File Config**: Added a clean configuration file under `/etc/sudoers.d/infra_user` with passwordless sudo privileges:
+  `infra_user ALL=(ALL) NOPASSWD: ALL`
+- **File Permissions**: Set the file permissions of `/etc/sudoers.d/infra_user` to `0440` (Read-only for owner/group, none for others) and made sure it's owned by `root:root`. This stops other local users from editing it.
 
 ---
 
-## 3. Firewall Hardening (UFW)
+## 🔒 2. SSH Daemon Hardening
+For remote access, I set up some secure defaults inside `/etc/ssh/sshd_config.d/99-infra-hardening.conf` so the main configuration file remains clean.
 
-The firewall is configured using Uncomplicated Firewall (UFW) to enforce a **Default-Deny** incoming policy.
-
-| Direction | Port / Protocol | Target / Comment | Rationale | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| **Default Incoming** | All | Deny | Protects the system from unauthorized network exposure. | [x] Applied |
-| **Default Outgoing** | All | Allow | Allows the VM to fetch package updates, logs, etc. | [x] Applied |
-| **Incoming** | `22/tcp` | SSH Daemon | Allows administrative shell access to the host. | [x] Applied |
-| **Incoming** | `8080/tcp` | Health Demo App | Exposes the application port for monitoring and validation. | [x] Applied |
-
----
-
-## 4. User and Sudo Privilege Isolation
-
-| Security Measure | Implementation | Rationale | Status |
-| :--- | :--- | :--- | :--- |
-| **Least Privilege User** | Created `infra_user` with primary group `infra_group`. | Ensures the health app and maintenance tasks run as a non-privileged user instead of `root`. | [x] Applied |
-| **Sudo Restriction** | Placed sudo rule in `/etc/sudoers.d/infra_user` | Avoids pollution of `/etc/sudoers` and limits changes to a clean modular config. | [x] Applied |
-| **Strict File Permissions** | Set permissions of `/etc/sudoers.d/infra_user` to `0440` owned by `root:root`. | Prevents modification or reading of sudoers configuration by unauthorized users. | [x] Applied |
+| Setting | Value | Why I set this |
+| :--- | :--- | :--- |
+| `PermitRootLogin` | `prohibit-password` | Nobody can guess the root password remotely; they must use SSH keys. |
+| `PasswordAuthentication` | `yes` | Kept as `yes` for easy debugging in VirtualBox, but in production, we should turn this off and use SSH Keys only. |
+| `PermitEmptyPasswords` | `no` | Stops accounts without passwords from logging in over SSH. |
+| `X11Forwarding` | `no` | Disables GUI forwarding over SSH to prevent UI exploits. |
+| `MaxAuthTries` | `5` | Automatically kicks out connections after 5 failed login attempts to stop brute-forcing. |
+| `ClientAliveInterval` | `300` | Sends a keep-alive check every 5 minutes. |
+| `ClientAliveCountMax` | `2` | Drops the connection if the client doesn't respond after 10 minutes (keeps connections clean). |
 
 ---
 
-## 5. File System & Path Hardening
+## 🧱 3. Firewall Hardening (UFW)
+I turned on Uncomplicated Firewall (UFW) with a **Default-Deny** incoming policy. If a port is not explicitly allowed, UFW drops the connection.
 
-| Directory / File | Owner:Group | Mode (Octal) | Security Value | Status |
-| :--- | :--- | :--- | :--- | :--- |
-| `/opt/infra-demo` | `infra_user:infra_group` | `750` | Prevents other non-system users from reading/writing scripts. | [x] Applied |
-| `/etc/infra-demo` | `infra_user:infra_group` | `750` | Restricts access to environment configuration files. | [x] Applied |
-| `/var/log/infra-demo` | `infra_user:infra_group` | `750` | Protects operational log privacy. | [x] Applied |
-| `/etc/infra-demo/infra-demo.env` | `infra_user:infra_group` | `640` | Protects config variables (potentially containing passwords/keys). | [x] Applied |
+- **Default Incoming**: `Deny` (Nobody can access the VM unless allowed).
+- **Default Outgoing**: `Allow` (The VM can fetch updates, logs, etc.).
+- **Allowed Port 22/tcp**: Allows us to SSH into the VM.
+- **Allowed Port 8080/tcp**: Allows external access to our Python health service.
 
 ---
 
-## 6. Intentionally Skipped Configurations
+## 📁 4. Strict File System Permissions
+To stop unauthorized users from viewing configs or messing with our app, I locked down the directories:
 
-1. **Changing SSH Port 22**: Changing the SSH port was skipped because this environment runs on local VMs. Modifying the SSH port often breaks local VM NAT port forwarding rules configured in VirtualBox/VMware, leading to lockout.
-2. **Disabling Password Authentication Completely**: Password authentication is kept enabled (`PasswordAuthentication yes`) because VM users rely on console password access. In a production cloud setting, this would be set to `no` in favor of public key authentication only.
+- `/opt/infra-demo` (Contains app & scripts) -> Set to `750` (owner has full rights, group can read/execute, others get nothing). Owned by `infra_user:infra_group`.
+- `/etc/infra-demo` (Contains config files) -> Set to `750`. Owned by `infra_user:infra_group`.
+- `/var/log/infra-demo` (Contains logs) -> Set to `750`. Owned by `infra_user:infra_group`.
+- `/etc/infra-demo/infra-demo.env` -> Set to `640` (Read/Write for owner, Read-only for group, others get nothing) to protect secret keys/config variables.
+
+---
+
+## ⚠️ What I Skipped (And Why)
+
+1. **Changing SSH Port 22**: Usually, it's good practice to change the SSH port to something random (like `2222`), but I skipped this because VirtualBox NAT port forwarding gets messed up easily, and I didn't want to get locked out of my local VM.
+2. **Disabling Password Authentication completely**: I left `PasswordAuthentication yes` so I can log in via VirtualBox console using standard username/password.
