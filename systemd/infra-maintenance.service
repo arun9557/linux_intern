@@ -1,0 +1,18 @@
+[Unit]
+Description=Infra Maintenance Task Service
+After=network.target
+
+[Service]
+Type=oneshot
+User=infra_user
+Group=infra_group
+ExecStart=/bin/bash /opt/infra-demo/maintenance.sh
+
+# Route stdout and stderr to a dedicated maintenance log file
+StandardOutput=append:/var/log/infra-demo/maintenance.log
+StandardError=append:/var/log/infra-demo/maintenance.log
+
+# Sandbox execution for safety
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true

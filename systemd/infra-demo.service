@@ -1,0 +1,25 @@
+[Unit]
+Description=Infra Demo Python HTTP Health Service
+After=network.target
+
+[Service]
+Type=simple
+User=infra_user
+Group=infra_group
+EnvironmentFile=/etc/infra-demo/infra-demo.env
+ExecStart=/usr/bin/python3 /opt/infra-demo/app.py
+Restart=always
+RestartSec=5
+
+# Modern Systemd logging to file (supported in Ubuntu 22.04/24.04)
+# This routes logs to both journald (by default) and the specified log file.
+StandardOutput=append:/var/log/infra-demo/app.log
+StandardError=append:/var/log/infra-demo/app.log
+
+# Basic service sandboxing
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

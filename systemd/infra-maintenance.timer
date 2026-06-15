@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Infra Maintenance Service every 10 minutes
+Requires=infra-maintenance.service
+
+[Timer]
+Unit=infra-maintenance.service
+# Triggers every 10 minutes (e.g. 12:00, 12:10, 12:20...)
+OnCalendar=*:0/10
+# If the machine was off when a trigger was scheduled, run it immediately on boot
+Persistent=true
+
+[Install]
+WantedBy=timers.target
