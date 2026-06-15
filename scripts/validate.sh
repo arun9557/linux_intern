@@ -9,6 +9,12 @@ set -euo pipefail
 # Returns: Exit 0 on absolute success, Exit 1 on any check failure.
 # ==============================================================================
 
+# Ensure script is running as root (required to check firewall status and read sudoers/logs)
+if [ "$EUID" -ne 0 ]; then
+    echo -e "\033[0;31mError: This script must be run as root (e.g. sudo ./scripts/validate.sh)\033[0m" >&2
+    exit 1
+fi
+
 # Helper for colored output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
@@ -104,8 +110,8 @@ HTTP_RESPONSE=$(curl -s -i "http://localhost:$PORT/health" || true)
 if [ -z "$HTTP_RESPONSE" ]; then
     log_failure "Health Endpoint: No response from HTTP health service on port $PORT"
 else
-    # Check HTTP Status Code
-    STATUS_CODE=$(echo "$HTTP_RESPONSE" | grep "HTTP/" | awk '{print $2}')
+    # Check HTTP Status Code (grep starting line to avoid server header matching)
+    STATUS_CODE=$(echo "$HTTP_RESPONSE" | grep "^HTTP/" | awk '{print $2}' | tr -d '\r')
     if [ "$STATUS_CODE" = "200" ]; then
         log_success "Health Endpoint: Returns HTTP 200 OK"
     else
