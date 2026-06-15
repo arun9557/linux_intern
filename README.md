@@ -57,7 +57,8 @@ Make sure you're running this on a local VM (like VirtualBox or VMware running U
 ### Step 1: Clone this repo
 ```bash
 git clone https://github.com/arun9557/linux_intern.git
-cd linux-infra-intern-assignment
+
+cd linux_intern/
 ```
 
 ### Step 2: Make the scripts executable
